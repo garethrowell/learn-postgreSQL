@@ -1,0 +1,42 @@
+pg_ctl ~ command-line utility to manage the cluster
+commands include start, stop, restart
+status ~ status of cluster
+initdb ~ initializes cluster
+reload ~  reload the configuration
+promote ~ used with replication features
+
+$echo $PGDATA to load PGDATA
+
+vim .bashrc
+
+alias pgstart='pg_ctl -D $PREFIX/var/lib/postgresql start'
+alias pgstop='pg_ctl -D $PREFIX/var/lib/postgresql stop'
+
+export LC_ALL=C
+
+source ~./bashsrc
+
+The template databases
+
+psql -l
+
+template1 cloned to your database
+
+the psql client
+---------------
+
+-d database name
+-U user name
+-h host IP address or host name
+
+\q quit
+\g works like ; (for terminals without ;)
+\e calls use your editor with EDITOR environment variable
+\i test.sql runs a text file with SQL commands
+\h is the help command
+\? with give you list of commands
+
+introspection commands ~  query Postgresql system catalogs
+\d lists user-defined tables
+
+
