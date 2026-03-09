@@ -5,7 +5,7 @@ initdb ~ initializes cluster
 reload ~  reload the configuration
 promote ~ used with replication features
 
-$echo $PGDATA to load PGDATA
+$echo $PGDATA to locate PGDATA
 
 vim .bashrc
 
