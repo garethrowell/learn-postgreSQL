@@ -1,0 +1,188 @@
+
+DDL - data definition language - statements to manage the database
+and tables
+
+DML - data manipulation language - statements to insert, update and 
+select data
+
+
+psql postgres
+
+\x - expanded mode
+
+\l - list all databases
+
+\l+ includes their sizes
+
+\c flyfishingdb
+
+
+
+down volume + c kills top
+
+top - table of processes
+htop - fancy table processes
+
+
+
+create new database from modified template
+-----------------------------------------
+psql template1
+
+create table dummytable
+
+\dt
+
+create datbase dummydb;
+
+\c dummydb
+
+\dt [dummydb contains dummytable]
+
+[clean up]
+
+\c template1
+
+drop table dummytable;
+
+drop database dummydb;
+
+[create db from your existing db]
+
+[while connected to template1]
+
+create database forumdb2 template forumdb;
+
+\q
+
+psql -U forum forumdb2
+
+\dt
+
+[all the tables from forumdb are now in forumdb2]
+
+size of database
+
+psql -U forum forumdb
+
+\x [expanded display]
+
+
+using EXISTS
+------------
+
+create table if not exists users (...
+
+drop table if exists myusers;
+
+
+other table options: temp, unlogged
+-----------------------------------
+
+session -> set of transactions -> transection 
+
+temp table exists within a session or within transaction
+
+temp within session:
+
+create temp table if not exists temp_users(...
+
+temp within transaction
+  start transaction
+  create temp_users table 
+  commit or roll back
+
+begin work
+
+*> [means inside transaction]
+
+create temp table if not exists temp_users_transaction( ...
+    ) on commit drop;
+
+\d temp_users_transaction
+    [you can see table]
+
+commit work;
+
+[repeat \d]
+     [the table should be gone]
+
+unlogged tables
+--------------
+     [much faster but not crash safe]
+
+create unlogged table if not exists unlogged_users( ...
+
+Data manipulation satements
+---------------------------
+
+insert, modify and delete
+
+[insert one line]
+insert into users (username, gecos, email)
+     values
+     ('myusername','mygecos','myemail');
+
+[insert multiple lines]
+insert into categories (title, description)
+     values
+     ('C Language','Languages'),
+     ('Python','Languages);
+
+NULL - special marker to indicate data value does not exist
+
+\pset null NULL
+     [null display is set to "NULL"]
+
+select title, description from categories
+     where description is null;
+
+teminology - relation is a table (math set)
+     tuple is a row or record
+
+sorting with NULL
+----------------
+
+order by -> sorts NULLs last
+
+order by mycolumn NULLS last; [gets same result]
+
+sort with NULLS first using
+
+order by mycolumn NULLS first;
+
+These are defaults
+
+order by NULLS last -> default for ASC
+
+order by NULLS first -> default for DESC
+
+Creating a table starting with another table
+--------------------------------------------
+
+create temp table temp_categories as
+     select * from categories;
+
+Updating some data
+-----------------
+
+update temp_categories
+     set title = 'Linux' where pk = 2;
+
+[updates single row]
+
+other where statements update multiple rows
+
+auto commit is default so watch out!!
+
+deleting some data
+------------------
+
+delete from my table where ...
+
+to delete all records in table use TRUNCATE
+
+truncate table my table
+
+truncate is much faster than delete for this purpose
+

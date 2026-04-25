@@ -1,0 +1,22 @@
+
+Users, groups, roles, incoming connections at role level
+
+users ~ users or applications 
+groups ~ collections of users that usually share object permissions
+
+role ~ can be users or groups of users
+
+if exists ~ use in scripts for managing users and other db objects
+
+deleting groups does #not# cascade to users
+
+\du shows all available groups and users
+\drg shows all groups that role is a member of...
+
+connections
+
+pg_hba.conf is the "firewall". It contains users and connection information
+that is approved or blocked
+
+
+
