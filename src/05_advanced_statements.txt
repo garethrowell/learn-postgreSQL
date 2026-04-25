@@ -1,0 +1,267 @@
+advanced statements
+-------------------
+
+includes select/insert/update
+as well as
+joins, common table expressions (CTEs) and merge
+
+\x for expanded display \x toggles off
+
+like condition
+--------------
+
+where title like 'Prog%';
+
+where title like '%Languages'
+
+where description like '%discuss%';
+
+like searches are case-sensitive
+
+upper(text) function returns TEXT
+
+make like case-insensitive
+
+select * from categories
+     where upper(description) like '%DISICUSS%';
+
+PostgreSQL also has ilike which is case-insensative;
+
+distinct and coalesce
+---------------------
+
+coalesce function - given two or more parameters, returns the
+  first value thats not NULL
+
+select coalesce (NULL, 'test');
+  [returns 'test']
+
+coalesce allows you to swap out NULL values with a more meaningful
+value as default
+
+limit and offset
+----------------
+
+limit - limits the number of rows returned
+
+offset - number of rows skipped before return
+
+limit and offset can be used to return data in pages
+
+limit 0 returns just the data structure of a table
+and so it can be used to create a new table w/o data
+
+Using subqueries
+----------------
+
+IN / NOT IN
+
+IN instead of a lot of ORs
+
+select * from categories where pk in (1,2);
+select * from categories where pk not in (1,2);
+
+using subqueries with IN / NOT IN
+
+select pk, title, content, author, category from posts
+  where category in (
+  select pk, from categories
+    where title = 'Database');
+
+EXISTS / NOT EXISTS
+
+EXISTS to check subquery returns true
+NOT EXISTS to check subquery returns false
+
+select pk, title, content, author, catogory
+from posts
+where exists(
+  select 1 from categories
+  where title = 'Database'
+  and posts.category = pk);
+
+Learning about joins
+--------------------
+
+cross join (or no join specified)
+returns all possible combinations
+
+select c.pk, c.title, p.pk, p.category, p.title
+from categories c
+posts p;
+
+[alternative]
+
+...
+from catogories c
+cross join
+posts p;
+
+
+inner joins
+
+select records that have matching values in both tables
+
+select c.pk, c.title, p.pk,p.category, p.title
+from categories c
+inner join 
+posts p
+on c.pk = p.category;
+
+left joins
+
+select c.*, p.category, p.title
+from categories c
+left join
+posts p
+on c.pk = p.categpry;
+
+query above returns all records from categories and 
+matched records from posts table.
+if posts table has no matches, it returns
+null for that table
+
+right joins
+
+returns all values for right table and only those that
+match on the left
+
+full outer joins
+
+the combine result of left and right joins
+
+select c.pk, c.title, p.pk, p.title
+from categories c
+full outer join 
+new_posts p
+on p.category = c.pk;
+
+lateral joins
+
+select u.username, q.*
+from users u
+join lateral 
+(select author, title, likes
+from posts p
+where u.pk = p.author
+and likes > 2)
+as q on true;
+
+in lateral join, subquery is run against each row
+of the main table
+
+aggregate functions
+-------------------
+using group by, or having conditions
+
+avg()
+count()
+max()
+min()
+sum()
+
+select category, count(*)
+from posts
+group by category
+having count(*) > 1;
+
+union / union all
+-----------------
+
+requirements for each select
+  same no columns
+  same datatypes for columns
+  same order of columns
+
+union - removes duplicates
+union all - leaves in duplicates
+
+except / intersection
+---------------------
+
+except - returns records in first query that are not
+in the second query
+
+intersect - returns all records in the first query
+that are also present in the second table
+
+upsert 
+------
+
+in Postresql, upsert command not part of SQL
+  to insert a new record on top of existing record
+  or update an existing record
+
+\d table1 - displays column names and data types
+
+how to do an upsert...
+it allows you to use insert
+and on conflict
+specifies an alternative action if insert violoates
+pk or unique constraints
+
+Using the RETURNING clause for insert
+-------------------------------------
+
+you can return nay or all columns after an insert
+
+insert into j_posts_tags (tag_pk, post_pk)
+  values (1, 3)
+  returning *;
+
+returning tuples out of queries
+and updating a table with data out of another table
+
+select * from categories;
+
+create temp table t_categories as
+  select * from categories limit 0;
+
+insert into t_categories (pk, title, description)
+  values ([a record], [another record]);
+
+update categories c
+  set title = t.tite, description = t.description
+  from t.categories t
+  where c.pk = t.pk;
+
+MERGE [works as above]
+---------------------
+
+select * from categories;
+
+create temp table new_data as
+  select * from categories limit 0;
+
+insert a couple new records into new_data
+
+[now merge the two datasets]
+
+merge into categories c
+  using new_data n
+  on c.pk = n.pk
+when matched then
+  update
+  set title = n.title, description = n.description
+when not matched then
+  insert (pk, title, description)
+  OVERRIDING SYSTEM VALUE
+  values (n.pk, n.title, n.description)
+
+  [the overriding prevents error due to pk
+  generated alwayus in categories]
+
+Exploring UPDATE and RETURNING
+------------------------------
+
+works the same way as INSERT and RETURNING
+
+update categories
+  set title = 'A.I.'
+  where pk = 4
+  returning pk, title, description;
+
+
+
+
+
