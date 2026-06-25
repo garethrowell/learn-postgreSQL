@@ -1,3 +1,5 @@
+3. Managing user connections
+----------------------------
 
 Users, groups, roles, incoming connections at role level
 

@@ -1,4 +1,7 @@
 
+4. Basic statements
+-------------------
+
 DDL - data definition language - statements to manage the database
 and tables
 

@@ -1,3 +1,7 @@
+
+2. Know your cluster
+--------------------
+
 pg_ctl ~ command-line utility to manage the cluster
 commands include start, stop, restart
 status ~ status of cluster

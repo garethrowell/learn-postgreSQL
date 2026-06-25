@@ -1,0 +1,199 @@
+6. Window functions
+------------------
+
+basic statement window functions
+
+select category, count(*) from posts
+  group by category
+  order by category;
+
+above sorts and aggregates
+
+select category, count(*) 
+  over (partition as category)
+  from posts
+  order by category;
+
+above is a window function...
+
+window functions create aggregates without flattening the data
+into a single row
+
+PARTITION BY function and WINDOW clause
+
+Using two OVER clauses...
+one column - count rows related to category
+another column - total count of columns
+
+select category, count(*)
+  over (partition by category), count(*) over()
+  from posts order by category;
+
+removing duplicate rows
+
+select distinct category, count(*)
+  over (partition by category), count(*) over()
+  from posts order by category;
+
+using alias
+
+select distinct category, count(*) over w1
+  count(*) over w2
+  from posts
+  WINDOW w1 as (partition by category), -- window clause
+  w2 as () -- window clause
+  order by category;
+
+some useful functions...
+
+generate a numerical series
+
+generate_series.generate_series
+
+select * from generate_series(1,5);
+
+ROW_NUMBER()
+
+within the partiion...
+
+select category, row_number(), over w
+  from posts
+  WINDOW w as (partition by category)
+  order by category;
+
+ORDER BY sorts all the values inside the window
+
+FIRST_VALUE returns 1st value in partition
+LAST_VALUE returns last value in partition
+
+both need ORDER BY clause
+
+RANK - ranks current row w/i partition
+ requre ORDER BY 
+
+RANK and PARTITION BY 
+  ranking calculated w/i partition and not
+  over entire table
+
+select pk, title, author, rank()
+  over (partition by author, order by author)
+  from posts;
+
+DENSE_RANK
+  DENSE_RANK like RANK except ranks current row within particion
+  *without gaps*
+
+LAG and LEAD functions
+
+lag(x) creates offset from x
+
+first generate series
+
+select x from generate_series(1, 5) as x;
+
+then create lag of x
+
+select x, lag(x) over w
+  from (select generate_series (1,5)) V
+  WINDOW w as (order by x);
+
+lag offset defaults to 1 and default (when there is
+no meaningful lag defaults to null
+
+lead is the opposite of lag - offset defaults to 1 and default
+is null when there isn't a meaningful lead
+
+CUME_DIST - calculates cumulative distribution of value 
+  within partition
+
+select x, cum_dist() over w
+  from (select generate_series(1,5) as x)
+  V Window as (order by x);
+
+NTILE()
+  splits records into buckets
+  here, we split into two buckets
+
+select x, ntile(2) over w
+  from (select generate_series(1, 6) as x)
+  V WINDOW W as (order by x);
+
+Using advanced statement window functions
+-----------------------------------------
+
+compare these two statements
+
+select distinct category, count(x)
+  over (partition by category)
+  from posts order by category;
+
+select distinct catogory, count(*)
+  over w1
+  from posts WINDOW w1 as
+  (partition by category  -- frame clause
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+    order by category;
+
+The frame clause
+----------------
+
+frames used to manage partitions
+  rows - start_point and end_point
+  range - start_point and end_point
+order by - required
+rows between
+range between
+
+ROWS BETWEEN
+------------
+select x from (select generate_series(1,5) as x) V
+  WINDOW w as (order by x);
+
+now, with sum(x)
+
+select x, sum(x) over w 
+  from (select generate_series(1,5) as x) V
+  window w as
+  (order by x ROWS BETWEEN UNBOUNDED
+    PRECEDING AND CURRENT ROW);
+
+ [see diagram on pp 290 - 291 for pointer behavior]
+
+ another example with different frame clause
+
+ select x, sum(x) over w
+   from (select generate_series(1,2) as x) V
+   window w as
+   (order by x RANGE BETWEEN 1 PREDICING AND 
+   CURRENT ROW);
+
+
+RANGE BETWEEN
+-------------
+
+Range combines all rows w/non-unique rows rather than
+   processing them one at a time
+
+Rows will process each row one at a time
+
+1st generate a series with duplicate data
+select generate_series(1,8)%4 as x
+  order by 1;
+
+Now compare rows with range clause
+  
+select x, row_number() over w,
+  sum(x) over w
+  from (select generate(1,8)%4 as x) V
+  WINDOW AS
+  (order by x, ROWS between 1 precedding and current row);
+
+  swap with...
+  (order by x, RANGE between 1 preceding and current row);
+
+again,
+range aggregates data frame as a group while row operates on 
+individual rows
+
+
+
