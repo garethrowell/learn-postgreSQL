@@ -1,0 +1,485 @@
+
+7. Server-side Programming
+--------------------------
+
+server-side functions
+extensibility
+standard data types
+  boolean
+  numeric
+  character
+  date/time
+  no sql types
+    hstore
+    xml
+    json
+    jsonb
+
+Boolean - true, yes, on, 1
+          false, no, off, 0
+
+Integer - integer, int4, bigint, int8
+
+real - real, double precision
+
+numeric - numeric(10,2) [use for money]
+
+character - character(n)/char(n) [fixed length, blank padded]
+  varing(n)/varchar(n) [variable length with a limit]
+  varchar/text [variable unlimited length]
+
+Using length(x) and octetlength(x) to explore varchar(x)
+
+text data type - variable length without limit
+
+substring(x, from i to j)
+
+
+Date/timestamp datatypes
+------------------------
+
+PostgreSQL handles dates and times (and timestamps) 
+with and without timezones
+
+Managing date format using pgsettings and with postgresql.conf
+file (pgsettings reports settings in postgresql.conf
+
+\x for expanded display
+
+select * from pg_settings where name = 'Date Style'
+
+need to restart server after modifying config file
+
+Functions for dates
+-------------------
+
+to_date(), to_char(), CURRENT_TIMESTAMP
+
+Timestamp date types
+--------------------
+
+create_on_t [with timezone]
+
+create_on_nt [without timezone]
+
+NoSQL data types
+---------------
+
+  hstore
+  xml
+  json/jsonb
+
+hstore - key-value pairs stored as single value
+------------------------------------------------
+
+create extension hstore;
+
+turn usernames and categories from separate tables into a single
+value column
+
+select p.pk, p.title, u.username, c.title as category, 
+  from posts p
+  inner join users u on p.author = u.pk
+  left join categories c on p.category = c.pk
+  order by 1;
+
+select p.pk, p.title,
+  hstore( ARRAY['username', u.usernae, 'category', c.title0]
+  as options
+  from post p
+  inner join users u on p.author = u.pk
+  left join categories c on p.category = c.pk
+  order by 1;
+
+put the result in a table
+
+create table post_options as
+  select...
+
+doing a select from a new table\
+
+select * from post_options
+  where options -> 'category' = 'Database';
+
+JSON data type
+--------------
+
+Postgresql has native json data type
+  json as text
+  json as binary and indexable;
+
+want to display titles and tags pairs
+
+select p.pk, p.title, t.tag from posts p
+  left join j_posts_tags jpt on p.pk = jpt.post_pk
+  left join tags t on jpt.tab_pk = t.pk
+  order by 1;
+
+this displays our title/tag pairs including repeats
+
+use 'group by' to elimnate repeats and aggregate data
+
+select p.pk, p.title, string_agg(t.tag, ',') as tag
+  from posts p
+  left join j_posts_tags jpt on p.pk = jpt.post_pk
+  left join tags t on jpt.tag_pk = t.pk
+  group by 1, 2
+  order by 1;
+
+generate the json structure...
+
+select row_to_json(q) as json_data from(
+  select p.pk, p.title, string_agg(t.tag, ',') as tag
+    from posts p
+    left join j_posts_tags jpt on p.pk = jpt.post_pk
+    left join tags t on jpt.tag_pk = t.pk
+    group by 1, 2
+    order by 1;
+  ) Q;
+
+now, call the table post_json with only one jsonb field
+  called jsondata
+
+create empty table post_json(json_data jsonb);
+
+insert data into post_json(json_data)(
+  select row_to_json(q) as json_data from(
+    select p.pk, p.title, string_agg(t.tag, ',') as tag
+      from posts p
+      left join j_posts_tags jpt on p.pk = jpt.post_pk
+      left join tags t on jpt.tag_pk = t.pk
+      group by 1, 2
+      order by 1;
+   ) Q
+)
+
+now to view the new jsonb table...
+
+select jsonb_pretty(jsondata) from post_json;
+
+or doing a where clause
+
+select jsonb_pretty(jsondata) from post_json
+  where jsondata @> { "tag":"Database"}
+
+@> operator checks where left JSON value contains the
+  right path/value entries;
+
+Exploring functions and languages
+---------------------------------
+
+main (built-in) languages
+  SQL
+  PL/pgSQL
+  C
+
+other languages (installed separately)
+  PL/Python
+  PL/Perl
+  PL/tcl
+  PL/Java
+
+SQL and PL/pgSQL functions
+--------------------------
+
+create function function_name(
+  p1 type, p2, type, p3 type, ... pn type)
+  reurns type as
+begin
+  -- function logic
+end;
+language language_name
+
+language_name ~ sql, plpgsql, plperl, plpython etc.
+
+SQL functions
+
+simple example ...
+
+create or replace funcion my_sum(x integer, y integer)
+  returns as integer 
+  $$ -- label
+  select x + y;
+  $$
+  language sql:
+  create function
+
+select my_sum(1, 2);
+
+SQL functinons returning a set of elements
+------------------------------------------
+
+example deletes where title = p_title and\
+  returns all keys of deleted records
+
+SQL function return set
+function name ~ delete_posts
+input parameter ~ p.title text
+process ~ deletes all records with 'title' = x
+and returns keys of deleted records
+
+create or return function delete_posts(p_title text)
+  returns setof integer as $$ -- NOTE  setof 
+  delete from posts
+  where title = p_title
+  returning pk;
+  $$
+  language SQL;
+  create function
+
+to delete a record where title is 
+  'A view of data types in C++'
+
+select delete_posts('A view of data types in C++');
+
+setof - works with any type of data
+
+SQL functions returning a table
+-------------------------------
+
+use when you need to return multiple fields
+
+create or replace function delete_posts_table(
+  p_title text)
+  returns table -- NOTE this 
+  (ret_key integer, ret_title text) as $$
+  delete from posts where title = p_title
+  return pk, title;
+  $$
+  language SQL
+  create function
+
+select * from delete_posts_table('My new post');
+
+Polymorphic SQL functions
+-------------------------
+
+here, we want to write a single function that can
+use all types of data
+likened to the Oracle NVL function which accepts 
+NULL parameters
+
+create or replace function nvl (anyelement, anyelement)
+  returns anyelement as $$
+  select coalesce ($1, $2);
+  $$
+  language SQL;
+  create function
+
+making calls to a polymorphic function
+
+select nvl(''::text, 'n'::text);
+
+select nvl('a'::text, 'n'::text);
+
+
+PL/pgSQL functions (likened to Oracle PL/SQL)
+------------------
+  - use to create functions and triggers
+  - control structures
+  - new data types
+  - variable declarations
+  - expressions
+  - control structures ~ conditional and looping
+  - cursors
+
+Creating a PL/pgSQL function
+----------------------------
+
+create or replace function my_sum(
+  x integer, y integer)
+  returns integer as
+  $ BODY $
+  DECLARE
+    return integer;
+  BEGIN
+    ret:= x + y
+    return ret;
+  END;
+  $BODY$
+  language 'plpgsql'
+  create function
+
+select my_sum(2, 3):
+
+Dropping a function
+-------------------
+
+drop function my_sum(integer, integer)
+
+Declaring function parameters
+-----------------------------
+
+using alias'
+
+create or replace function my_sum(integer, integer)
+  returns integer as
+  $BODY$
+  DECLARE
+    x alias for $1
+    y alias for $2
+    ret integer;
+  BEGIN
+    ret:= x + y
+    return retç
+  END
+  $BODY$
+  language 'plpgsql'
+  CREATE FUNCTION 
+
+IN/OUT parameters
+-----------------
+
+create or replace function my_sum_3_params
+  (IN x integer, IN y integer, OUT z integer)
+  AS
+  $BODY$
+  BEGIN
+    z: = x + y;
+  END;
+  $BODY$
+  language 'plpgsql';
+  CREATE FUNCTION
+
+select my_sum_3_params(2,3);
+
+IN ~ input paramters (default)
+OUT ~ output parameters
+INOUT ~ input / output paramters
+
+Functions are VOLATILE (default)
+              STABLE
+	      IMMUTABLE
+
+VOLATILE ~ can change the database (most common)
+STABLE ~ cannot modify the database
+IMMUTABLE ~ always returns same result 
+            (optimizer pre-evaluates)
+
+examples...
+
+now() is a STABLE function
+  value is fixed w/i transaction
+  no change to the database
+
+lower(string-expression) is an immutable function
+  returns same result across multiple transactions
+
+
+Control structures
+------------------
+
+  - conditional statements
+  - loop statementss
+  - exception handler statements
+
+IF THEN
+  [ELSEIF THEN
+  [ELSEIF THEN
+  [ELSE
+END IF;
+
+CASE X
+  WHEN 1 THEN return 'value = 1';
+  WHEB 2 THEN return ...
+  ELSE return ...;
+  END CASE;
+
+LOOP statements
+---------------
+
+create a composite data type for this example...
+
+create type my_ret_type as (
+  id integer,
+  title text,
+  record_data hstore
+  );
+create type
+
+for rw in select * from posts
+  where pk = p_id loop
+    ret.id = rw.pk;
+    ret.title = rw.title;
+    ret.record_data := hstore value
+    return next ret;
+    end loop
+  return;
+
+  NOTE: the result is not returned 
+    until loop hits return;
+
+The record type
+---------------
+
+create or replace function my_second_fun(p_id intger)
+       
+create or replace function my_second_fun(p_id integer)
+  returns setof my_ret_type as
+  $$
+  declare
+  rw record;   -- declare record variable
+  ret my_ret_type;
+begin
+  for rw in select * from posts 
+    where pk = p_id loop
+    ret.id = rw.pk;
+    ret.title = rw.title;
+    ret.record_data :=
+      hstore(array['title', rw.title,
+        'Title and Content', format('%s %s', rw.title,
+	                                 rw.content)]);
+    return nxt ret;
+  end loop
+  return;
+end;
+$$
+language 'plpgsql'
+create function
+
+\x
+select * from my_second_fun(5);
+
+Exception handling statements
+-----------------------------
+
+example catching division by 0
+
+create or replace function my_second_except(x real, y real)
+  returns real as
+  $$
+  DECLARE
+    ret real;
+  BEGIN
+    ret := x/y;
+    return ret;
+  EXCEPTION
+    WHEN division_by_zero THEN
+      RAISE INFO 'DIVISION BY ZERO';
+      RAISE INFO 'Error % %,
+        SQLSTATE, SQLERRM;
+      RETURN 0;
+  END;
+  $$
+  language 'plpgsql';
+  CREATE FUNCTION
+
+Security definer
+----------------
+
+invoke a function as if you are the owner
+  typically to access system info from a regular user
+
+create function forum.my_stat_activity()
+  returns table (pid integer, query text)
+  as $$
+    select p.id, query from pg_stat_activity;
+  $$ language 'sql'
+  security definer;  -- modify security here...
+  grant execute on function forum.my_stat_activity
+    to forum;
+
+  select * from my_stat_activity -- run as forum
+
+
+
