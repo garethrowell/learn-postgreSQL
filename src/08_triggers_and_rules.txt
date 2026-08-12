@@ -1,0 +1,358 @@
+8. Triggers and rules
+---------------------
+
+Events can be controlled by rules and triggers
+
+Rules are simple event handlers
+  - insert
+  - delete
+  - update
+
+rule options...
+
+insert 
+  cancel operation
+  perform another operation
+  execute insert and perform another operation
+
+old and new variables - based on state of row during 
+  operation
+ 
+concept of "cursors"
+
+old - vaue already present in table
+new - value after the update operation
+
+one or both may exist
+
+operation 	new	old
+---------       ---     ---
+insert		present	absent
+delete		absent	present
+update		present	absent
+
+[differs substantially from triggers - above]
+
+rules on insert 
+
+create or replace rule rule_name
+  as on event
+    to table [where condition]
+    do [also | instead]
+  {nothing | command | (command, command...)}
+
+example...
+
+create table O_tabes(
+  pk integer not null primary key,
+  tag text,
+  parent integer);
+
+[CREATE TABLE]
+
+create or replace rule r_tags
+  as on insert to tags
+    where new.tag ilike 'O%'
+  do also
+    insert into O_tags(pk, tag, parent)
+    values(new.pk, new.tag, new.parent);
+
+[CREATE RULE]
+
+insert into tags(tag)
+  values('OpenBSD');
+ 
+PostgreSQL always executes rules before the event.
+
+INSTEAD OF option
+-----------------
+
+create table F_tags(
+  pk integer not null primary key,
+  tag text,
+  parent integer
+  );
+
+create or replace rule r_tags2
+  as on INSTEAD to tags
+    where new.tag ilike 'f%'
+  DO INSTEAD insert into F_tags
+    (pk, tag, parent)
+    values(new.pk, new.tag, new.parent);
+
+insert into (tag)
+  values('Fedora Linux');
+
+example to do nothing instead...
+
+create or replace rule r_tag3
+  as on INSERT to tags
+    where new.tag ilike 'r%'
+  DO INSTEAD NOTHING;
+
+insert into tags(tag) values('Red Hat Linux')
+
+
+Rules on DELETE/UPDATE
+----------------------
+
+create table new_tags as
+  select * from tags limit 0; -- empty table
+alter table new_tags alter pk set not null;
+alter table new_tags add constraint
+  new_tags_pk primary key (pk);
+
+create table new_a_tags as
+  select * from tags limit 0; -- empty table
+alter table new_a_tags alter pk set not null;
+alter table new_a_tags add constraint
+  new_tags_a_pk primary key (pk);
+
+create table new_b_tags as
+  select * from tags limit 0; -- empty table
+alter table new_b_tags alter pk set not null;
+alter table new_b_tags add constraint
+  new_tags_b_pk primary key (pk);
+
+\d [table name] to inspect the design
+
+------------
+
+using yank in vim
+  5yy the current line and 4 lines
+  p to paste
+
+
+Managing rules on insert, delete, and update events
+---------------------------------------------------
+
+new_tags -> new_a_tags 
+         -> new_b_tags
+
+insert rules
+-----------
+
+create or replace rule r_new_tags_insert_a as
+  on insert to new_tags
+  where NEW.tag like 'a%'
+  DO ALSO insert into new_a_tags(pk, tag, parent)
+  values(NEW.pk, NEW.tag, NEW.parent);
+
+create or replace rule r_new_tags_insert_b as
+  on insert to new_tags
+  where NEW.tag like 'b%'
+  DO ALSO insert into new_a_tags(pk, tag, parent)
+  values(NEW.pk, NEW.tag, NEW.parent);
+
+\d new_tags [displays table design and new rules
+associated with that table
+
+insert into new_tags(1, 'linux', NULL);
+insert into new_tags(2, 'alpine linux', 1);
+insert into new_tags(1, 'bsd unix', NULL);
+
+DELETE rules
+------------
+
+create or replace rule r_new_tags_delete_a as
+  on delete to new_tags
+  where OLD.tag like 'a%'
+  DO ALSO delete from new_a_tags
+  where pk = OLD.pk;
+
+create or replace rule r_new_tags_delete_b as
+  on delete to new_tags
+  where OLD.tag like 'b%'
+  DO ALSO delete from new_a_tags
+  where pk = OLD.pk;
+
+\d new_tags [displays the table design and both
+  delete rultes as well as insert rules
+
+delete from new_tags where tag = 'alpine linux';
+delete from new_tags where tag = 'bsd unix';
+
+UPDATE rules
+------------
+
+(1) create the function
+
+create or replace move_record(
+  p_pk integer,
+  p_tag text,
+  p_parent integer,
+  p_old_pk integer,
+  p_old_tag text)
+  returns void
+  language 'plpgsql'
+  $$
+  BEGIN
+    if left(lower(p_tag),1) in ('a','b') then
+      delete from new_tags
+        where pk = p_old_pk;
+      insert into new_tags
+        values(p_pk, p_tag, p_parent);
+    end if
+  END
+  $$;
+
+(2) then create the rule
+
+create or replace rule r_new_tags_update_a
+  as on update to new_tags
+  DO ALSO
+  select move_record(NEW.pk, NEW.tag, NEW.parent,
+    OLD.pk, OLD.tag);
+
+update new_tags set tag = 'alpine linux'
+  where tag = 'linux';
+
+update new_tags set tag = 'bsd unix'
+  where tag = 'alpine linux';
+
+Managing triggers in PostgreSQL
+-------------------------------
+
+triggers are complex event handlers
+  NEW and OLD records
+
+INSERT/DELETE/UPDATE and TRUNCATE
+
+unlike rules, triggers can happen before and after
+events
+ 
+compare the following with rules which are much
+more limited
+
+BEFORE      INSERT/UPDATE/DELETE/TRUNCATE
+AFTER       INSERT/UPDATE/DELETE/TRUNCATE
+INSTEAD OF  INSERT/UPDATE/DELETE
+
+[INSTEAD OF only works with views]
+
+if on the same table and event...
+  rules fire before triggers
+  triggers are fired in alphabetical order
+
+TRIGGER concept
+---------------
+
+- there is an event we want to handle, e.g., insert
+  delete or update
+- we want to execute something before or after
+  the event
+- the trigger calls up some function
+
+example... 
+
+[NOTE we are always dealing with DML actions, DDL actions
+are handled by so-called "event triggers". They are 
+only covered briefly at the end of this chapter]
+
+create or replace function f3_tags()
+  RETURNS TRIGGER AS 
+  $$
+  BEGIN
+  IF lower(substring(NEW.tag from 1 for 1)) THEN
+    insert into new_a_tags(pk, tag, parent)
+    values (NEW.pk, NEW.tag, NEW.parent);
+    RETURN NEW;
+  ELSIF lower(substring(NEW.tag from 1 for 1)) THEN
+    insert into new_b_tags(pk, tag, parent);
+    values (NEW.pk, NEW.tag, NEW.parent);
+    RETURN NULL;
+  ELSE
+    RETURN NEW;
+  END IF;
+  END;
+  $$
+  LANGUAGE 'plpgsql';
+
+create trigger t3_tags
+  before insert on new_tags
+  for each row
+    execute procedure f3_tags();
+
+insert into new_tags(pk, tag, parent)
+  values(1, 'operating systems', NULL);
+
+insert into new_tags(pk, tag, parent)
+  values(2, 'alpine linux', 1;
+
+insert into new_tags(pk, tag, parent)
+  values(3, 'bsd_unix', 1);
+
+Trigger-related variables
+-------------------------
+NEW
+OLD
+TG_OP [holds the value of the current command:
+  insert | delete | update | truncate]
+
+Triggers on update and delete
+-----------------------------
+
+example...
+
+create or replace function fcopy_tags() 
+  returns trigger as
+$$ 
+BEGIN
+if TG_OP = 'INSERT' then
+  if lower(substring(NEW.tag from 1 for 1) = 'a' then
+    insert into new_a_tags(pk, tag, parent)
+    values(NEW.pk, NEW.tag, NEW.parent);
+  elsif lower(substring(NEW.tag from 1 for 1) = 'b' then
+    insert into new_b_tags(pk, tag, parent)
+    values(NEW.pk, NEW.tag, NEW.parent);
+  end if;
+  END;
+  $$
+  LANGUAGE 'plpgsql'
+
+create trigger t_copy_tags_ins
+  BEFORE INSERT on new_tags
+  FOR EACH ROW EXECUTE PROCEDURE fcopy_tags();
+
+test with insert event...
+
+insert into new_tags(pk, tag, parent)
+  values(1, 'operating systems', NULL);
+
+insert into new_tags(pk, tag, parent)
+  values(2, 'alpine linux', 1);
+
+insert into new_tags(pk, tag, parent)
+  values(3, 'bsd_unix', 1);
+
+you can extend the function fcopy_tags() to address
+
+if TG_OP = 'DELETE' or TG_OP = 'UPDATE'
+
+each requires a separate trigger
+
+EVENT triggers
+--------------
+
+triggers that fire on DDL statements
+ can change data structure rather than data content
+
+event triggers aren't specified to tables, although
+a table can be modified in the DDL command
+
+event triggers use cases include logical replication
+auditing and other infrastructure
+
+see the documentation for variables and tags for 
+introspection
+
+ddl_command_start
+sql_drop
+table_rewrite
+create event trigger drop / alter
+pg_event_trigger_command()
+pg_event_trigger_dropped_objects()
+
+##
+
+
